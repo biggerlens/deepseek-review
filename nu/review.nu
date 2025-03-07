@@ -69,6 +69,7 @@ export def --env deepseek-review [
   --include(-i): string,    # Comma separated file patterns to include in the code review
   --exclude(-x): string,    # Comma separated file patterns to exclude in the code review
   --temperature(-T): float, # Temperature for the model, between `0` and `2`, default value `1.0`
+  --timeout(-o): int,      # 请求超时时间（秒），默认30秒
 ]: nothing -> nothing {
 
   $env.config.table.mode = 'psql'
@@ -83,6 +84,7 @@ export def --env deepseek-review [
   let url = $chat_url | default $env.CHAT_URL? | default $'($base_url)/chat/completions'
   let max_length = try { $max_length | default ($env.MAX_LENGTH? | default 0 | into int) } catch { 0 }
   let temperature = try { $temperature | default $env.TEMPERATURE? | default $DEFAULT_OPTIONS.TEMPERATURE | into float } catch { $DEFAULT_OPTIONS.TEMPERATURE }
+  let timeout = $timeout | default ($env.TIMEOUT? | default 30 | into int)
   validate-temperature $temperature
   let setting = {
     repo: $repo,
@@ -136,7 +138,7 @@ export def --env deepseek-review [
   print $'(char nl)Waiting for response from (ansi g)($url)(ansi reset) ...'
   if $stream { streaming-output $url $payload --headers $CHAT_HEADER --debug=$debug; return }
 
-  let response = http post -e -H $CHAT_HEADER -t application/json $url $payload
+  let response = http post --max-time $timeout -e -H $CHAT_HEADER -t application/json $url $payload
   if ($response | is-empty) {
     print $'(ansi r)Oops, No response returned from ($url) ...(ansi reset)'
     exit $ECODE.SERVER_ERROR
